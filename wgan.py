@@ -10,6 +10,9 @@ from os.path import join
 
 
 '''
+# The Generator and Discrminator Using Batch Norm with or without tanh
+
+
 class Generator:
 	def __init__(self, depths = [1024, 512, 256, 128], f_size = 4):
 		self.reuse = False
