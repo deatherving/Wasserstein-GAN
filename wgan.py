@@ -384,7 +384,7 @@ class Discriminator:
 
 
 		
-class DCGAN:
+class WGAN:
 	def __init__(self, batch_size, lr = 0.0002):
 		self.generator = Generator()
 		self.discriminator = Discriminator()
@@ -402,7 +402,6 @@ class DCGAN:
 
 		return im
 
-
 	def build_graph(self):
 		
 		real_images = self.real_images
@@ -417,15 +416,15 @@ class DCGAN:
 
 		d_loss = tf.reduce_mean(d_logits_fake) - tf.reduce_mean(d_logits_real)
 			
-		dcgan_loss = - tf.reduce_mean(d_logits_fake)
+		wgan_loss = - tf.reduce_mean(d_logits_fake)
 
 		d_optim = tf.train.RMSPropOptimizer(learning_rate = self.lr).minimize(d_loss, var_list = self.discriminator.variables)
 
-		dcgan_optim = tf.train.RMSPropOptimizer(learning_rate = self.lr).minimize(dcgan_loss, var_list = self.generator.variables)
+		wgan_optim = tf.train.RMSPropOptimizer(learning_rate = self.lr).minimize(wgan_loss, var_list = self.generator.variables)
 
 		weight_clip = [tf.assign(var, tf.clip_by_value(var, -0.01, 0.01)) for var in self.discriminator.variables]
 
-		return d_optim, dcgan_optim, weight_clip, d_loss, dcgan_loss
+		return d_optim, wgan_optim, weight_clip, d_loss, wgan_loss
 
 
 def get_args():
@@ -482,9 +481,9 @@ def train(input_dir, save_dir,  batch_size = 32, lr = 5e-5, nb_epoch = 200):
 
 	nb_samples = imgs.shape[0]
 
-	dcgan = DCGAN(batch_size = batch_size, lr = lr)
+	wgan = WGAN(batch_size = batch_size, lr = lr)
 
-	d_optim, dcgan_optim, weight_clip, d_loss, dcgan_loss = dcgan.build_graph()
+	d_optim, wgan_optim, weight_clip, d_loss, wgan_loss = wgan.build_graph()
 
 	with tf.Session() as sess:
 		sess.run(tf.global_variables_initializer())
@@ -493,7 +492,7 @@ def train(input_dir, save_dir,  batch_size = 32, lr = 5e-5, nb_epoch = 200):
 			print "Training epoch %d" % epoch
 			for i in range(nb_batches):
 				
-				# we could apply several d_optim and then dcgan_optim
+				# we could apply several d_optim and then wgan_optim
 				
 				for j in range(5):
 
@@ -501,13 +500,13 @@ def train(input_dir, save_dir,  batch_size = 32, lr = 5e-5, nb_epoch = 200):
 			
 					sess.run(weight_clip)
 
-					sess.run(d_optim, feed_dict = {dcgan.real_images: real_images_batch})
+					sess.run(d_optim, feed_dict = {wgan.real_images: real_images_batch})
 
-				sess.run(dcgan_optim)
+				sess.run(wgan_optim)
 
 			if epoch % 5 == 0 and epoch != 0:
 
-				sampled_imgs = sess.run(dcgan.sample_image())
+				sampled_imgs = sess.run(wgan.sample_image())
 		
 				idx = 0
 
