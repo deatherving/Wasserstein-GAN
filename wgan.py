@@ -10,11 +10,11 @@ from os.path import join
 
 
 '''
+
 # The Generator and Discrminator Using Batch Norm with or without tanh
 
-
 class Generator:
-	def __init__(self, depths = [1024, 512, 256, 128], f_size = 4):
+	def __init__(self, depths = [1024, 512, 256, 128], f_size = 8):
 		self.reuse = False
 		self.f_size = f_size
 		# add 3 for RGB channel
@@ -155,14 +155,14 @@ class Discriminator:
 
 				w = tf.get_variable(
 					'w',
-					[flatten_dim, 2],
+					[flatten_dim, 1],
 					tf.float32,
 					tf.truncated_normal_initializer(stddev = 0.02)
 				)
 
 				b = tf.get_variable(
 					'b',
-					[2],
+					[1],
 					tf.float32,
 					tf.zeros_initializer()
 				)
@@ -194,7 +194,7 @@ class Discriminator:
 '''
 
 class Generator:
-	def __init__(self, depths = [1024, 512, 256, 128], f_size = 4):
+	def __init__(self, depths = [1024, 512, 256, 128], f_size = 8):
 		self.reuse = False
 		self.f_size = f_size
 		# add 3 for RGB channel
@@ -230,19 +230,6 @@ class Generator:
 
 				reshaped = tf.reshape(fc, [-1, self.f_size, self.f_size, input_depths[0]])
 
-				'''
-				beta = tf.get_variable(
-					'beta',
-					[input_depths[0]],
-					tf.float32,
-					tf.zeros_initializer())
-
-				# set axes to 0 ,1 ,2 for global normalization
-				mean, variance = tf.nn.moments(reshaped, [0, 1, 2])
-
-				bn = tf.nn.batch_normalization(reshaped, mean, variance, beta, None, 1e-5)
-
-				'''
 				outputs = tf.nn.relu(reshaped)
 
 				out.append(outputs)
@@ -256,20 +243,15 @@ class Generator:
 						tf.float32,
 						tf.truncated_normal_initializer(stddev = 0.02)
 					)
-					
+
 
 					b = tf.get_variable(
 						'b',
 						[output_depths[i]],
 						tf.float32,
-						tf.zeros_initializer())
-					'''
-					beta = tf.get_variable(
-						'beta',
-						[output_depths[i]],
-						tf.float32,
-						tf.zeros_initializer())
-					'''
+						tf.zeros_initializer()
+					)
+					
 					trans_conv = tf.nn.conv2d_transpose(
 						outputs,
 						w,
@@ -280,15 +262,12 @@ class Generator:
 					
 					# need to be modified for scalability
 					if i < 3:
-						#mean, variance = tf.nn.moments(trans_conv, [0, 1, 2])
-						#bn = tf.nn.batch_normalization(trans_conv, mean, variance, beta, None, 1e-5)
 						outputs = tf.nn.relu(trans_conv)
 					else:
-						outputs = tf.nn.tanh(tf.nn.bias_add(trans_conv, b))
-						#outputs = trans_conv
+						#outputs = tf.nn.tanh(tf.nn.bias_add(trans_conv, b))
+						outputs = trans_conv
 
 					out.append(outputs)
-
 
 		self.reuse = True
 		self.variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope = 'generator')
@@ -320,18 +299,8 @@ class Discriminator:
 						tf.float32,
 						tf.truncated_normal_initializer(stddev = 0.02)
 					)
-
-					beta = tf.get_variable(
-						'beta',
-						[output_depth[i]],
-						tf.float32,
-						tf.zeros_initializer())
-
+				
 					conv = tf.nn.conv2d(outputs, w, [1 ,2 ,2 ,1], 'SAME')
-					'''
-					mean, variance = tf.nn.moments(conv, [0, 1, 2])
-					bn = tf.nn.batch_normalization(conv, mean, variance, beta, None, 1e-5)
-					'''
 
 					outputs = self.leaky_relu(conv)
 
@@ -342,16 +311,19 @@ class Discriminator:
 
 				flatten_dim = tensor_shape[1] * tensor_shape[2] * tensor_shape[3]
 
+				print tensor_shape
+				
+
 				w = tf.get_variable(
 					'w',
-					[flatten_dim, 2],
+					[flatten_dim, 1],
 					tf.float32,
 					tf.truncated_normal_initializer(stddev = 0.02)
 				)
 
 				b = tf.get_variable(
 					'b',
-					[2],
+					[1],
 					tf.float32,
 					tf.zeros_initializer()
 				)
@@ -380,17 +352,14 @@ class Discriminator:
 	def __call__(self, inputs):
 		return self.build_graph(inputs)
 
-
-
-
 		
 class WGAN:
-	def __init__(self, batch_size, lr = 0.0002):
+	def __init__(self, batch_size, width = 64, lr = 0.0002):
 		self.generator = Generator()
 		self.discriminator = Discriminator()
 		self.batch_size = batch_size
 		self.lr = lr
-		self.real_images = tf.placeholder(tf.float32, shape = [self.batch_size, 64, 64, 3])
+		self.real_images = tf.placeholder(tf.float32, shape = [self.batch_size, width, width, 3])
 	def noice(self, dim):
 		return tf.random_uniform([self.batch_size, dim], minval = -1.0, maxval = 1.0)
 	def sample_image(self):
@@ -473,15 +442,15 @@ def read_data(directory, target_size):
 	
 	
 	
-def train(input_dir, save_dir,  batch_size = 32, lr = 5e-5, nb_epoch = 200):
+def train(input_dir, save_dir,  batch_size = 32, lr = 5e-5, nb_epoch = 300):
 
-	imgs = read_data(input_dir, target_size = [64, 64])
+	imgs = read_data(input_dir, target_size = [128, 128])
 
 	nb_batches = int(imgs.shape[0] / batch_size)
 
 	nb_samples = imgs.shape[0]
 
-	wgan = WGAN(batch_size = batch_size, lr = lr)
+	wgan = WGAN(batch_size = batch_size, width = 128, lr = lr)
 
 	d_optim, wgan_optim, weight_clip, d_loss, wgan_loss = wgan.build_graph()
 
@@ -523,4 +492,4 @@ def train(input_dir, save_dir,  batch_size = 32, lr = 5e-5, nb_epoch = 200):
 
 if __name__ == '__main__':
 	args = get_args()
-	train("cats_no_crop", "samples")
+	train("myself", "samples")
